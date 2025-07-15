@@ -1,4 +1,4 @@
-#Persona
+## Persona
 
 A peer-to-peer AI chat system using SvelteKit, PeerJS, llama.cpp, and a Rust WASM plugin. The host runs a local LLM (llama.cpp) and exposes it to clients on the same network via a QR code and P2P connection.
 
