@@ -1,0 +1,11 @@
+{
+  "name": "file-plugin",
+  "version": "0.1.0",
+  "files": [
+    "file_plugin_bg.wasm",
+    "file_plugin.js",
+    "file_plugin.d.ts"
+  ],
+  "main": "file_plugin.js",
+  "types": "file_plugin.d.ts"
+}

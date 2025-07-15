@@ -11,16 +11,25 @@
   let conn: any;
 
   function formatConversation(): string {
-    let formattedString = '';
+  const systemPrompt = `<|system|>
+You are a helpful AI assistant with access to tools.
+To use a tool, you MUST respond with ONLY the exact command format.
+Available Tools:
+- Calculator: [CALCULATOR:add(num1, num2)] or [CALCULATOR:subtract(num1, num2)]
+- File System: [FILE_PLUGIN:readFile("path/to/file.txt")] or [FILE_PLUGIN:writeFile("path/to/file.txt", "content")]
+<|end|>\n`;
+
+    let history = '';
     for (const message of conversation) {
       if (message.author === 'me') {
-        formattedString += `<|user|>\n${message.text}<|end|>\n`;
+        history += `<|user|>\n${message.text}<|end|>\n`;
       } else {
-        formattedString += `<|assistant|>\n${message.text}<|end|>\n`;
+        if (!message.text.startsWith('[TOOL_')) {
+          history += `<|assistant|>\n${message.text}<|end|>\n`;
+        }
       }
     }
-    formattedString += `<|assistant|>\n`;
-    return formattedString;
+    return systemPrompt + history + `<|assistant|>\n`;
   }
 
   onMount(() => {
@@ -29,7 +38,7 @@
     const hostId = urlParams.get('id');
     const hostIp = window.location.hostname;
 
-    if (!hostId || !hostIp) { /* ... same error handling ... */ return; }
+    if (!hostId || !hostIp) { return; }
 
     const peer = new Peer({ host: hostIp, port: 9000, path: '/' });
 
@@ -39,8 +48,17 @@
       conn = peer.connect(hostId);
       conn.on('open', () => { status = '✅ Connected to AI Host!'; });
       conn.on('data', (dataFromServer: any) => {
-        const text = dataFromServer.toString().trim(); // Trim whitespace
-        conversation = [...conversation, { author: 'ai', text }];
+        const text = dataFromServer.toString().trim();
+
+        if (text.startsWith('[TOOL_RESULT:')) {
+          const result = text.slice(13, -1); 
+          conversation = [...conversation, { author: 'ai', text: result }];
+        } else if (text.startsWith('[TOOL_ERROR:')) {
+          const error = text.slice(12, -1);
+          conversation = [...conversation, { author: 'ai', text: `An error occurred: ${error}` }];
+        } else {
+          conversation = [...conversation, { author: 'ai', text: text }];
+        }
         isLoading = false;
       });
     });
