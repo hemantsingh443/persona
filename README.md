@@ -22,7 +22,8 @@ A peer-to-peer AI chat system using SvelteKit, PeerJS, llama.cpp, and a Rust WAS
 - **This enables persistent, secure, and collision-free P2P connections** across reloads and devices.
 
 ### Mobile Browser Requirements
-- **Ed25519 key generation via Web Crypto API** is required for identity. As of mid-2024, this is only supported in the latest desktop browsers and will be available in Chrome for Android 138+ (June 2025). Most mobile browsers (including iOS Safari) do NOT support Ed25519 yet.
+- **Ed25519 key generation via Web Crypto API** this is only supported in the latest desktop browsers and is available in Chrome for Android 138+ (June 2025). (check[caniuse](https://caniuse.com/) for other browsers compatibity) 
+
 - **If your mobile browser does not support Ed25519**, you will see an error and cannot connect as a client. Use a desktop browser or check for updates to your mobile browser.
 - **HTTPS is required** for all connections (including WebSockets). You must run both the SvelteKit app and PeerJS server with SSL certificates (see below).
 - **If using self-signed certificates (e.g., mkcert), you must trust the CA on your mobile device** for connections to work.
