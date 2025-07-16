@@ -19,20 +19,25 @@ To use a tool, you MUST respond with ONLY the exact command format.
 Available Tools:
 - Calculator: [CALCULATOR:add(num1, num2)] or [CALCULATOR:subtract(num1, num2)]
 - File System: [FILE_PLUGIN:readFile("path/to/file.txt")] or [FILE_PLUGIN:writeFile("path/to/file.txt", "content")]
+- System Info: [SYSTEM_INFO:getStatus()]
+- Scheduler: [SCHEDULER:addTask("reminder text", unix_timestamp)] 
+
 <|end|>\n`;
 
-    let history = '';
-    for (const message of conversation) {
-      if (message.author === 'me') {
-        history += `<|user|>\n${message.text}<|end|>\n`;
-      } else {
-        if (!message.text.startsWith('[TOOL_')) {
-          history += `<|assistant|>\n${message.text}<|end|>\n`;
-        }
+  let history = '';
+  for (const message of conversation) {
+    if (message.author === 'me') {
+      history += `<|user|>\n${message.text}<|end|>\n`;
+    } else {
+      // CRITICAL FIX: Do not include the AI's previous tool USE in its memory.
+      // Only include its actual text responses.
+      if (!message.text.includes('[CALCULATOR:') && !message.text.includes('[FILE_PLUGIN:') && !message.text.includes('[SYSTEM_INFO:') && !message.text.includes('[SCHEDULER:')) {
+         history += `<|assistant|>\n${message.text}<|end|>\n`;
       }
     }
-    return systemPrompt + history + `<|assistant|>\n`;
   }
+  return systemPrompt + history + `<|assistant|>\n`;
+}
 
   function connectToHost(myId: string, hostId: string, hostIp: string) {
     status = 'Creating PeerJS client...';
@@ -53,16 +58,34 @@ Available Tools:
         conn = peer.connect(hostId);
         conn.on('open', () => { status = '✅ Connected to AI Host!'; });
         conn.on('data', (dataFromServer: any) => {
-          const text = dataFromServer?.toString?.().trim?.() ?? '';
-          if (text.startsWith('[TOOL_RESULT:')) {
-            const result = text.slice(13, -1); 
-            conversation = [...conversation, { author: 'ai', text: result }];
-          } else if (text.startsWith('[TOOL_ERROR:')) {
-            const error = text.slice(12, -1);
-            conversation = [...conversation, { author: 'ai', text: `An error occurred: ${error}` }];
-          } else {
-            conversation = [...conversation, { author: 'ai', text: text }];
+          const text = dataFromServer.toString().trim();
+          let processed = false; // Flag to see if we've handled the message
+
+          // --- UNIFIED TOOL & JSON HANDLER ---
+          try {
+            const jsonResult = JSON.parse(text);
+            // If it's valid JSON, we assume it's a tool result.
+            const formattedResult = `<pre>${JSON.stringify(jsonResult, null, 2)}</pre>`;
+            conversation = [...conversation, { author: 'ai', text: formattedResult }];
+            processed = true;
+          } catch (e) {
+            // Not a JSON object, do nothing and proceed.
           }
+
+          // If it was not processed as JSON, treat it as a normal text message.
+          if (!processed) {
+            if (text.startsWith('[TOOL_RESULT:')) {
+                const result = text.slice(13, -1);
+                conversation = [...conversation, { author: 'ai', text: result }];
+            } else if (text.startsWith('[SCHEDULED_MESSAGE:')) {
+                const reminder = text.slice(18, -1);
+                conversation = [...conversation, { author: 'ai', text: `⏰ Reminder: ${reminder}` }];
+            } else {
+                // It's a normal chat message
+                conversation = [...conversation, { author: 'ai', text: text }];
+            }
+          }
+
           isLoading = false;
         });
     });

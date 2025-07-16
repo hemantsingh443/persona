@@ -1,0 +1,11 @@
+{
+  "name": "system-info-plugin",
+  "version": "0.1.0",
+  "files": [
+    "system_info_plugin_bg.wasm",
+    "system_info_plugin.js",
+    "system_info_plugin.d.ts"
+  ],
+  "main": "system_info_plugin.js",
+  "types": "system_info_plugin.d.ts"
+}

@@ -59,6 +59,31 @@ The AI OS features a **modular plugin system** that allows the core AI (LLM) to 
   - LLM emits: `[FILE_PLUGIN:readFile("/home/user/file.txt")]`
   - Host detects this and calls `/api/filesystem` endpoint, which uses the Node plugin to read the file and returns the contents.
 
+### **C. System Info Plugin (Node-Only, Server-Side)**
+
+- **Location:** `static/plugins/SYSTEM_INFO_PLUGIN/system_info_plugin.js` (Node.js/WASM, not loaded in browser)
+- **Exports:**
+  ```js
+  // Node.js style, used only on the server
+  module.exports.getStatus = function() { /* returns system info */ };
+  ```
+- **LLM Usage Example:**
+  - LLM emits: `[SYSTEM_INFO:getStatus()]`
+  - Host detects this and calls `/api/systeminfo` endpoint, which uses the Node plugin to get system status and returns the result.
+
+### **D. Scheduler Plugin (Browser-Compatible)**
+
+- **Location:** `static/plugins/SCHEDULER_PLUGIN/scheduler_plugin.js` (WASM+JS, browser-compatible)
+- **Exports:**
+  ```js
+  export function addTask(unix_timestamp, message) { /* schedules a reminder */ }
+  export function checkTasks() { /* returns due reminders */ }
+  export default { addTask, checkTasks };
+  ```
+- **LLM Usage Example:**
+  - LLM emits: `[SCHEDULER:addTask("Check the build", 1717430400)]`
+  - Host loads the plugin and calls `addTask(1717430400, "Check the build")`, scheduling the reminder. The ticker calls `checkTasks()` to check for due reminders and sends them to the client.
+
 ---
 
 ## Adding New Plugins

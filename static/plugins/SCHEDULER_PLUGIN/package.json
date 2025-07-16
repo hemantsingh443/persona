@@ -1,0 +1,15 @@
+{
+  "name": "scheduler-plugin",
+  "type": "module",
+  "version": "0.1.0",
+  "files": [
+    "scheduler_plugin_bg.wasm",
+    "scheduler_plugin.js",
+    "scheduler_plugin.d.ts"
+  ],
+  "main": "scheduler_plugin.js",
+  "types": "scheduler_plugin.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
