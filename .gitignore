@@ -22,4 +22,7 @@ Thumbs.db
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
-llama.cpp
+llama.cpp 
+
+192.168.0.100.pem 
+192.168.0.100-key.pem

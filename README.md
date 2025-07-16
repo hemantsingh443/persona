@@ -9,6 +9,23 @@ A peer-to-peer AI chat system using SvelteKit, PeerJS, llama.cpp, and a Rust WAS
 - **Local LLM** (llama.cpp) runs on the host, answers client prompts
 - **Rust WASM plugin (experimental)** for file operations 
 - **QR code** for easy client connection
+- **Persistent cryptographic identity** for each host and client (Ed25519 keypair, used as PeerJS ID)
+- **Per-host identity storage** for clients (each client gets a unique identity per host link)
+
+---
+
+## Identity-Based Connection System
+
+- **Each host and client generates a persistent Ed25519 keypair** (using the Web Crypto API or a JS fallback library).
+- **PeerJS IDs are derived from the public key** (the `x` property of the JWK), ensuring stable, cryptographically unique identities.
+- **Clients store their identity per host**: when you connect to a new host, a new identity is generated and stored in your browser's localStorage under a key like `persona-identity-<hostId>`.
+- **This enables persistent, secure, and collision-free P2P connections** across reloads and devices.
+
+### Mobile Browser Requirements
+- **Ed25519 key generation via Web Crypto API** is required for identity. As of mid-2024, this is only supported in the latest desktop browsers and will be available in Chrome for Android 138+ (June 2025). Most mobile browsers (including iOS Safari) do NOT support Ed25519 yet.
+- **If your mobile browser does not support Ed25519**, you will see an error and cannot connect as a client. Use a desktop browser or check for updates to your mobile browser.
+- **HTTPS is required** for all connections (including WebSockets). You must run both the SvelteKit app and PeerJS server with SSL certificates (see below).
+- **If using self-signed certificates (e.g., mkcert), you must trust the CA on your mobile device** for connections to work.
 
 ---
 
@@ -82,27 +99,44 @@ VITE_HOST_IP=YOUR.LAN.IP.ADDRESS
 npm install -g peer
 ```
 
-### Start the PeerJS Server
+### Start the PeerJS Server (with SSL for HTTPS/WSS)
 ```sh
-peerjs --port 9000 --host 0.0.0.0
+peerjs --port 9000 --host 0.0.0.0 --sslkey ./192.168.x.xxx-key.pem --sslcert ./192.168.x.xxx.pem
 ```
 - Make sure port 9000 is open in your firewall.
 - The server must be accessible from other devices on your LAN.
+- You must use SSL certificates for mobile/HTTPS support. Use [mkcert](https://github.com/FiloSottile/mkcert) to generate trusted local certs.
 
 ---
 
-## 5. Run the SvelteKit App
+## 5. Run the SvelteKit App (with HTTPS)
 
 ```sh
 npm run dev -- --host 0.0.0.0
 ```
-- Visit `http://localhost:5173` on your host machine.
+- Configure `vite.config.js` to use your SSL certs:
+```js
+import { defineConfig } from 'vite';
+import fs from 'fs';
+export default defineConfig({
+  server: {
+    https: {
+      key: fs.readFileSync('./192.168.x.xxx-key.pem'),
+      cert: fs.readFileSync('./192.168.x.xxx.pem'),
+    },
+    host: '0.0.0.0',
+  },
+});
+```
+- Visit `https://<your-lan-ip>:5173` on your host machine.
 - Scan the QR code with your phone (on the same Wi-Fi) to open the client page.
+- If using self-signed certs, you must trust the CA on your mobile device.
 
 ---
 
 ## 6. How it Works
-- The host page generates a PeerJS ID and QR code for the client.
+- The host page generates a persistent cryptographic PeerJS ID and QR code for the client.
+- The client generates a unique identity per host and connects using its own persistent PeerJS ID.
 - The client connects to the host via PeerJS and sends prompts.
 - The host forwards prompts to llama.cpp and returns the response.
 - All communication is P2P (no central chat server).
@@ -125,13 +159,17 @@ curl -X POST http://localhost:8080/completion -d '{"prompt":"Hello, AI!", "n_pre
 ---
 
 ## 8. Troubleshooting
-- **PeerJS connection refused:**
+- **PeerJS connection refused or stuck on identity:**
   - Make sure the PeerJS server is running and accessible on your LAN IP and port 9000.
   - Open port 9000 in your firewall.
+  - Make sure your browser supports Ed25519 (see above for mobile requirements).
+  - If you see a certificate warning, trust the mkcert CA on your device.
 - **llama.cpp not responding:**
   - Make sure the server is running and the model path is correct.
 - **QR code not showing:**
   - Check browser console for errors.
+- **Client stuck on 'Getting identity...' or 'Failed to get identity':**
+  - Your browser does not support Ed25519. Use a supported desktop browser or update your mobile browser when support is available.
 
 ---
 

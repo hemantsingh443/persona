@@ -1,14 +1,16 @@
-
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { browser } from '$app/environment';
   import Peer from 'peerjs';
+  import { getIdentity } from '$lib/identity'; 
 
   let conversation: { author: 'me' | 'ai'; text: string }[] = [];
   let status: string = 'Initializing...';
   let isLoading: boolean = false;
   let prompt = '';
   let conn: any;
+  let peer: Peer | undefined;
+
 
   function formatConversation(): string {
   const systemPrompt = `<|system|>
@@ -32,38 +34,90 @@ Available Tools:
     return systemPrompt + history + `<|assistant|>\n`;
   }
 
-  onMount(() => {
+  function connectToHost(myId: string, hostId: string, hostIp: string) {
+    status = 'Creating PeerJS client...';
+    if (peer) {
+        peer.destroy();
+    }
+
+    peer = new Peer(myId, { host: hostIp, port: 9000, path: '/', secure: true });
+
+    peer.on('open', () => {
+        status = 'PeerJS open, connecting to host...';
+        if (!peer) {
+          status = '❌ Peer object is undefined.';
+          return;
+        }
+        console.log('Client is ready with stable ID:', myId);
+        status = `Connecting to host: ${hostId}...`;
+        conn = peer.connect(hostId);
+        conn.on('open', () => { status = '✅ Connected to AI Host!'; });
+        conn.on('data', (dataFromServer: any) => {
+          const text = dataFromServer?.toString?.().trim?.() ?? '';
+          if (text.startsWith('[TOOL_RESULT:')) {
+            const result = text.slice(13, -1); 
+            conversation = [...conversation, { author: 'ai', text: result }];
+          } else if (text.startsWith('[TOOL_ERROR:')) {
+            const error = text.slice(12, -1);
+            conversation = [...conversation, { author: 'ai', text: `An error occurred: ${error}` }];
+          } else {
+            conversation = [...conversation, { author: 'ai', text: text }];
+          }
+          isLoading = false;
+        });
+    });
+
+    peer.on('error', (err) => {
+        status = `❌ PeerJS Error: ${err.type}`;
+        console.error('PeerJS Error on Client:', err);
+        // Note: The client's own ID should almost never be taken.
+        // Most errors here will be connection-related.
+        status = `❌ P2P Error: ${err.type}`;
+    });
+  }
+
+  onMount(async () => {
     if (!browser) return;
+    status = 'Parsing URL...';
     const urlParams = new URLSearchParams(window.location.search);
     const hostId = urlParams.get('id');
     const hostIp = window.location.hostname;
 
-    if (!hostId || !hostIp) { return; }
+    if (!hostId || !hostIp) { status = '❌ Host ID or IP not found.'; return; }
 
-    const peer = new Peer({ host: hostIp, port: 9000, path: '/' });
+    status = 'Getting identity...';
+    const storageKey = `persona-identity-${hostId}`;
+    let identity;
+    try {
+      identity = await getIdentity(storageKey);
+    } catch (e) {
+      status = `❌ Failed to get identity: ${e instanceof Error ? e.message : e}`;
+      console.error('getIdentity error:', e);
+      return;
+    }
+    status = 'Parsing public key...';
+    const myPeerId = JSON.parse(identity.publicKey).x;
 
-    peer.on('open', (id) => {
-      console.log('Client is ready with ID:', id);
-      status = `Connecting to host: ${hostId}...`;
-      conn = peer.connect(hostId);
-      conn.on('open', () => { status = '✅ Connected to AI Host!'; });
-      conn.on('data', (dataFromServer: any) => {
-        const text = dataFromServer.toString().trim();
-
-        if (text.startsWith('[TOOL_RESULT:')) {
-          const result = text.slice(13, -1); 
-          conversation = [...conversation, { author: 'ai', text: result }];
-        } else if (text.startsWith('[TOOL_ERROR:')) {
-          const error = text.slice(12, -1);
-          conversation = [...conversation, { author: 'ai', text: `An error occurred: ${error}` }];
-        } else {
-          conversation = [...conversation, { author: 'ai', text: text }];
-        }
-        isLoading = false;
-      });
-    });
-    peer.on('error', (err) => { });
+    if (myPeerId) {
+      status = 'Connecting to host peer...';
+      connectToHost(myPeerId, hostId, hostIp);
+    } else {
+      status = '❌ Could not derive client Peer ID.';
+    }
   });
+
+  function cleanup() {
+      if (peer) {
+          console.log('Destroying client peer object.');
+          peer.destroy();
+          peer = undefined;
+      }
+  }
+
+  onDestroy(cleanup);
+  if (browser) {
+      window.addEventListener('beforeunload', cleanup);
+  }
 
 
   function handleSubmit() {
